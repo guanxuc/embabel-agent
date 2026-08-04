@@ -51,6 +51,20 @@ class Thinking private constructor(
         val NONE: Thinking = Thinking(
             enabled = false,
         )
+
+        /**
+         * Ensure application-level thinking extraction is enabled.
+         *
+         * - If [existing] is `null` or [NONE], returns [withExtraction].
+         * - If extraction is already on, returns [existing] unchanged.
+         * - Otherwise, applies extraction via [applyExtraction], preserving
+         *   any provider budget ([enabled] / [tokenBudget]).
+         */
+        @JvmStatic
+        fun ensureExtraction(existing: Thinking?): Thinking = when (existing) {
+            null, NONE -> withExtraction()
+            else -> if (existing.extractThinking) existing else existing.applyExtraction()
+        }
     }
 
     /**

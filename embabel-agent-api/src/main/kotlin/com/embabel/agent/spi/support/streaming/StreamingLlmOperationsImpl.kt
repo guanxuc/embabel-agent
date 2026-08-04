@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.withApplicationLevelThinking
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
@@ -175,29 +176,12 @@ internal class StreamingLlmOperationsImpl(
         return doTransformObjectStreamInternal(
             messages = messages,
             // *WithThinking*: ensure Interaction has application-level Thinking.extractThinking.
-            interaction = withApplicationLevelThinkingIfNecessary(interaction),
+            interaction = interaction.withApplicationLevelThinking(),
             outputClass = outputClass,
             llmRequestEvent = llmRequestEvent,
             agentProcess = agentProcess,
             action = action,
         )
-    }
-
-    /**
-     * Ensure [Thinking.extractThinking] is set for application-level (prompt-instructed) thinking.
-     * Preserves provider budget via [Thinking.applyExtraction]. Not LLM-native reasoning (#1716).
-     */
-    private fun withApplicationLevelThinkingIfNecessary(interaction: LlmInteraction): LlmInteraction {
-        val existing = interaction.llm.thinking
-        val thinking = when (existing) {
-            null, Thinking.NONE -> Thinking.withExtraction()
-            else -> if (existing.extractThinking) existing else existing.applyExtraction()
-        }
-        return if (thinking === existing) {
-            interaction
-        } else {
-            interaction.copy(llm = interaction.llm.withThinking(thinking))
-        }
     }
 
     // ========================================

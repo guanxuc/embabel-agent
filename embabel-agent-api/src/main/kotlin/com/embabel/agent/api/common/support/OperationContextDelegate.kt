@@ -421,11 +421,7 @@ internal data class OperationContextDelegate(
      */
     private fun streamingInteractionForThinkingIfNecessary(): LlmInteraction {
         val base = streamingInteraction()
-        val thinking = when (val existing = llm.thinking) {
-            null, Thinking.NONE -> Thinking.withExtraction()
-            else -> if (existing.extractThinking) existing else existing.applyExtraction()
-        }
-        return base.copy(llm = llm.withThinking(thinking))
+        return base.copy(llm = llm.withThinking(Thinking.ensureExtraction(llm.thinking)))
     }
 
     private fun streamingFactory(): StreamingLlmOperationsFactory {

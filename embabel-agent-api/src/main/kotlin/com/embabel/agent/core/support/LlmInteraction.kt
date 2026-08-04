@@ -28,6 +28,7 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.embabel.common.core.MobyNameGenerator
@@ -203,3 +204,13 @@ class InvalidLlmReturnTypeException(
 ) : RuntimeException(
     "Validation errors: ${constraintViolations.joinToString(", ")}",
 )
+
+/**
+ * Return a copy of this interaction with application-level thinking extraction enabled.
+ * Delegates to [Thinking.ensureExtraction]. Provider budget is preserved.
+ */
+fun LlmInteraction.withApplicationLevelThinking(): LlmInteraction {
+    val newThinking = Thinking.ensureExtraction(llm.thinking)
+    return if (newThinking === llm.thinking) this
+           else copy(llm = llm.withThinking(newThinking))
+}

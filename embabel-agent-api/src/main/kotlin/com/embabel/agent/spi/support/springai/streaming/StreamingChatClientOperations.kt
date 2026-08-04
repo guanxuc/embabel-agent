@@ -19,10 +19,11 @@ import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.withApplicationLevelThinking
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
-import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.PROMPT_ELEMENT_SEPARATOR
 import com.embabel.agent.spi.support.buildConsolidatedPromptMessages
 import com.embabel.agent.spi.support.buildPromptContributionsString
@@ -300,32 +301,12 @@ internal class StreamingChatClientOperations(
             messages = messages,
             // *WithThinking*: ensure Interaction carries application-level Thinking
             // (extractThinking). Format instructions follow that flag — no separate SPI param.
-            interaction = withApplicationLevelThinkingIfNecessary(interaction),
+            interaction = interaction.withApplicationLevelThinking(),
             outputClass = outputClass,
             llmRequestEvent = llmRequestEvent,
             agentProcess = agentProcess,
             action = action,
         )
-    }
-
-    /**
-     * Ensure [Thinking.extractThinking] is set on the interaction for application-level
-     * (prompt-instructed) thinking streams. Preserves any existing provider budget
-     * ([Thinking.enabled] / [Thinking.tokenBudget]) via [Thinking.applyExtraction].
-     *
-     * This is *not* LLM-native reasoning (provider thinking channels — see #1716).
-     */
-    private fun withApplicationLevelThinkingIfNecessary(interaction: LlmInteraction): LlmInteraction {
-        val existing = interaction.llm.thinking
-        val thinking = when (existing) {
-            null, Thinking.NONE -> Thinking.withExtraction()
-            else -> if (existing.extractThinking) existing else existing.applyExtraction()
-        }
-        return if (thinking === existing) {
-            interaction
-        } else {
-            interaction.copy(llm = interaction.llm.withThinking(thinking))
-        }
     }
 
     /**
@@ -376,9 +357,6 @@ internal class StreamingChatClientOperations(
         // Chat Options, additional potential option "streaming"
         val chatOptions = requireSpringAiLlm(llm).convertOptions(interaction.llm)
 
-        // Application-level thinking format: Thinking.extractThinking (not provider tokenBudget / enabled).
-        val includeApplicationLevelThinking = interaction.llm.thinking?.extractThinking == true
-
         // Spring AI 2.0's StreamingJacksonOutputConverter requires T : Any;
         // erase O via Class<Any> for the construction, cast result back at use sites.
         @Suppress("UNCHECKED_CAST")
@@ -388,7 +366,8 @@ internal class StreamingChatClientOperations(
             clazz = outputClassAny,
             objectMapper = chatClientLlmOperations.objectMapper,
             fieldFilter = interaction.fieldFilter,
-            thinkingEnabled = includeApplicationLevelThinking,
+            // Application-level thinking format: Thinking.extractThinking (not provider tokenBudget / enabled).
+            thinkingEnabled = interaction.llm.thinking?.extractThinking == true,
         ) as StreamingJacksonOutputConverter<O>  // signature compatibility for downstream Flux<O>/StreamingEvent<O> uses
 
         // Build prompt using helper methods, including streaming format instructions
